@@ -192,9 +192,9 @@ bool ray_plane_intersection(
 	t = (plane_offset - dot(plane_normal , ray_origin) )/ (dot(plane_normal, ray_direction)); 
 
 	if(dot(plane_normal, ray_direction) > 0.0)
-		normal = plane_normal;
-	else
 		normal = - plane_normal;
+	else
+		normal = plane_normal;
 
 	//normal = ...;
 	return t > 0.;
@@ -222,46 +222,54 @@ bool ray_cylinder_intersection(
 	vec3 oc = ray_origin - cyl.center;
 	vec3 vec_2 = oc - dot(oc, cyl.axis) * cyl.axis;
 	float a = dot(vec_1, vec_1);
-	float b = 2. * dot(vec_1, oc - dot(oc, cyl.axis) * cyl.axis);
+	float b = 2. * dot(vec_1, vec_2);
 	float c = dot(vec_2, vec_2) - cyl.radius * cyl.radius;
 	vec3 intersection_point;
 	t = MAX_RANGE + 10.;
 
 	vec2 solutions;
 	int num_sol = solve_quadratic(a, b, c, solutions);
+	bool top_cap, bottom_cap;
 
-	if(num_sol == 0)
-		return false;
-	
+	float t1, t2;
+	top_cap = ray_plane_intersection(ray_origin, ray_direction, normalize(cyl.axis), dot(normalize(cyl.axis), cyl.center + normalize(cyl.axis) * (cyl.height / 2.0)), t1, normal);
+	bottom_cap = ray_plane_intersection(ray_origin, ray_direction, -normalize(cyl.axis), dot(-normalize(cyl.axis), cyl.center - normalize(cyl.axis) * cyl.height / 2.0), t2, normal);
 
 	t = solutions[0];
 	if((solutions[1] > 0. && solutions[1] < t) || t < 0.)
 		t = solutions[1];
-	if(t < 0.)
-		return false;
-
+	
 	intersection_point = ray_origin + t * ray_direction;
-	float bottom_cap = dot(cyl.axis, (intersection_point - (cyl.center - (cyl.axis * cyl.height / 2.))));
-	float top_cap = dot(cyl.axis, (intersection_point - (cyl.center + (cyl.axis * cyl.height / 2.))));
-	if(bottom_cap < -0.0005)
-		return false;
-	if(top_cap > 0.0005)
-		return false;
-
 	normal = normalize(intersection_point - cyl.center - dot(intersection_point - cyl.center, cyl.axis) * cyl.axis);
-	vec3 dist1 = (intersection_point - (cyl.center - ((cyl.axis * cyl.height / 2.))));
-	vec3 dist2 = (intersection_point - (cyl.center + ((cyl.axis * cyl.height / 2.))));
-	if(bottom_cap < 0.0005 && dot(dist1, dist1) < cyl.radius * cyl.radius) {
-		normal = -normalize(cyl.axis);
-		return true;
-	}
-	if(top_cap > -0.0005 && dot(dist2, dist2) < cyl.radius * cyl.radius) {
-		normal = normalize(cyl.axis);
-		return true;
+
+	float bottom_cap_dist = dot(cyl.axis, (intersection_point - (cyl.center - (cyl.axis * cyl.height / 2.))));
+	float top_cap_dist = dot(cyl.axis, (intersection_point - (cyl.center + (cyl.axis * cyl.height / 2.))));
+	if(bottom_cap_dist < 0.) {
+		if(t == solutions[0]) 
+			t = solutions[1];
+		else
+			t = solutions[0];
+		intersection_point = ray_origin + t * ray_direction;
+		normal = -normalize(intersection_point - cyl.center - dot(intersection_point - cyl.center, cyl.axis) * cyl.axis);
+		bottom_cap_dist = dot(cyl.axis, (intersection_point - (cyl.center - (cyl.axis * cyl.height / 2.))));
+		if(t < 0. || bottom_cap_dist < 0.001)
+			return false;
 	}
 
+	if(top_cap_dist > 0.){
+		if(t == solutions[0]) 
+			t = solutions[1];
+		else
+			t = solutions[0];
+		intersection_point = ray_origin + t * ray_direction;
+		normal = -normalize(intersection_point - cyl.center - dot(intersection_point - cyl.center, cyl.axis) * cyl.axis);
+		top_cap_dist = dot(cyl.axis, (intersection_point - (cyl.center + (cyl.axis * cyl.height / 2.))));
+		if(t < 0. || top_cap_dist > 0.001)
+			return false;
+	} 
 
-	return t > -0.005;
+
+	return t > 0.;
 }
 
 
